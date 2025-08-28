@@ -7,26 +7,35 @@ on:
 
 permissions:
   contents: read
-  security-events: write   # to upload SARIF (optional but nice)
+  security-events: write   # to upload SARIF
   pages: write             # to deploy GitHub Pages
   id-token: write          # required by deploy-pages
 
-# .github/workflows/ci-trivy.yml
 jobs:
   build-and-scan:
     runs-on: ubuntu-latest
     env:
-      IMAGE_NAME: ${{ toLower(github.repository) }}  # <-- lowercase
       IMAGE_TAG: ci-${{ github.sha }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Make a lowercase image name from $GITHUB_REPOSITORY
+      - name: Normalize image name
+        run: echo "IMAGE_NAME=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
+      - name: Prep folders
+        run: mkdir -p artifacts public/badges
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build image (no push)
         run: docker build -t "$IMAGE_NAME:$IMAGE_TAG" .
-        
+
       # --- Trivy: image vulnerabilities (does not fail the job) ---
-      - name: Trivy scan (image → JSON + SARIF)
+      - name: Trivy scan (image → JSON)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: image
@@ -38,7 +47,7 @@ jobs:
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
           exit-code: '0'
 
-      - name: Trivy scan (image → SARIF upload)
+      - name: Trivy scan (image → SARIF)
         uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: image
@@ -55,7 +64,7 @@ jobs:
         with:
           sarif_file: artifacts/trivy-image.sarif
 
-      # --- Trivy: repo/filesystem scan (configs, IaC, deps) ---
+      # --- Trivy: repo/filesystem scan (configs, IaC, deps, secrets) ---
       - name: Trivy scan (fs → JSON)
         uses: aquasecurity/trivy-action@0.24.0
         with:
@@ -70,24 +79,23 @@ jobs:
 
       # --- Create Shields-compatible JSON badges ---
       - name: Create badges
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p public/badges
 
           # jq helpers to count unique vulns by severity for Trivy JSON
           count() { jq -r "$1" "$2" 2>/dev/null || echo 0; }
 
           IMG_CRIT=$(count '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL") | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
           IMG_HIGH=$(count '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")     | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
-          IMG_MED=$(count '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
-          IMG_LOW=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")     | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
+          IMG_MED=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
+          IMG_LOW=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
 
           FS_CRIT=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL") | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
           FS_HIGH=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")     | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
           FS_MED=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
           FS_LOW=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
 
-          # Simple color ramp based on highest severity present
           color_for() {
             local crit=$1 high=$2 med=$3 low=$4
             if   [ "$crit" -gt 0 ]; then echo "red"
@@ -127,7 +135,7 @@ jobs:
         with:
           path: public
 
-    # Deploy must be a separate job (recommended by GitHub)
+  # Deploy must be a separate job
   deploy-pages:
     needs: build-and-scan
     runs-on: ubuntu-latest
@@ -141,4 +149,3 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
-
