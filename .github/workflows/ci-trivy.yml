@@ -88,28 +88,26 @@ jobs:
 
           IMG_CRIT=$(count '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL") | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
           IMG_HIGH=$(count '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")     | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
-          # IMG_MED=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
-          # IMG_LOW=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
+          IMG_MED=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
+          IMG_LOW=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-image.json)
 
           FS_CRIT=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="CRITICAL") | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
           FS_HIGH=$(count  '[.Results[].Vulnerabilities[]? | select(.Severity=="HIGH")     | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
-          # FS_MED=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
-          # FS_LOW=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
+          FS_MED=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="MEDIUM")   | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
+          FS_LOW=$(count   '[.Results[].Vulnerabilities[]? | select(.Severity=="LOW")      | .VulnerabilityID] | unique | length' artifacts/trivy-fs.json)
 
           color_for() {
             local crit=$1 high=$2 med=$3 low=$4
             if   [ "$crit" -gt 0 ]; then echo "red"
             elif [ "$high" -gt 0 ]; then echo "orange"
-            # elif [ "$med"  -gt 0 ]; then echo "yellow"
-            # elif [ "$low"  -gt 0 ]; then echo "yellowgreen"
+            elif [ "$med"  -gt 0 ]; then echo "yellow"
+            elif [ "$low"  -gt 0 ]; then echo "yellowgreen"
             else echo "brightgreen"
             fi
           }
 
-          # CI_COLOR=$(color_for "$IMG_CRIT" "$IMG_HIGH" "$IMG_MED" "$IMG_LOW")
-          # FS_COLOR=$(color_for "$FS_CRIT" "$FS_HIGH" "$FS_MED" "$FS_LOW")
-          CI_COLOR=$(color_for "$IMG_CRIT" "$IMG_HIGH")
-          FS_COLOR=$(color_for "$FS_CRIT" "$FS_HIGH")
+          CI_COLOR=$(color_for "$IMG_CRIT" "$IMG_HIGH" "$IMG_MED" "$IMG_LOW")
+          FS_COLOR=$(color_for "$FS_CRIT" "$FS_HIGH" "$FS_MED" "$FS_LOW")
 
           cat > public/badges/ci-image.json <<JSON
           {"schemaVersion":1,"label":"CI image vuln","message":"${IMG_CRIT}C ${IMG_HIGH}H","color":"${CI_COLOR}"}
